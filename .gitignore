@@ -1,0 +1,105 @@
+# ============================================================
+# .gitignore — OCR Platform Monorepo
+# ============================================================
+
+# ====== Java / Maven ======
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+.mvn/
+mvnw
+mvnw.cmd
+
+# ====== Gradle (au cas où) ======
+.gradle/
+build/
+
+# ====== Python ======
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+*.egg
+
+# ====== IDE — IntelliJ IDEA ======
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ====== IDE — VS Code ======
+.vscode/
+*.code-workspace
+
+# ====== IDE — Eclipse ======
+.classpath
+.project
+.settings/
+.metadata/
+
+# ====== OS — Windows ======
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ====== OS — macOS / Linux (au cas où on bosse à plusieurs) ======
+.DS_Store
+*.swp
+*.swo
+
+# ====== Logs ======
+logs/
+*.log
+log/
+
+# ====== Secrets et configurations locales ======
+# IMPORTANT : ne JAMAIS commiter de secrets !
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+application-local.yml
+application-local.properties
+
+# ====== Docker ======
+# Volumes de données Docker (locaux)
+docker-data/
+.docker/
+
+# ====== Fichiers temporaires ======
+*.tmp
+*.bak
+*.swp
+*~
+
+# ====== Coverage / Reports ======
+coverage/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ====== Node (si jamais front plus tard) ======
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
