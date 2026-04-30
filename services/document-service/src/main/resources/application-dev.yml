@@ -1,0 +1,81 @@
+# ============================================================================
+# document-service — Profile DEV
+# ----------------------------------------------------------------------------
+# Configuration spécifique au développement local.
+# Cible l'infrastructure Docker locale (docker-compose.infra.yml) :
+#   - MySQL  : localhost:3306
+#   - Kafka  : localhost:29092 (listener externe)
+#   - MinIO  : localhost:9000 (sera utilisé plus tard)
+# ============================================================================
+
+spring:
+  # --------------------------------------------------------------------------
+  # DataSource — Connexion MySQL local (Docker)
+  # --------------------------------------------------------------------------
+  datasource:
+    url: jdbc:mysql://localhost:3306/documents_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ocr_user
+    password: ocr_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # Hikari = pool de connexions par défaut Spring Boot
+    hikari:
+      pool-name: DocumentServiceHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  # --------------------------------------------------------------------------
+  # JPA — paramètres dev (verbeux)
+  # --------------------------------------------------------------------------
+  jpa:
+    show-sql: true              # Affiche les requêtes SQL dans la console
+    properties:
+      hibernate:
+        # Dialect MySQL 8 (auto-détecté en général, mais on est explicite)
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # --------------------------------------------------------------------------
+  # Flyway — migrations BDD
+  # --------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Baseline = considère que la BDD existante est à la version 1
+    # (utile si on ajoute Flyway sur une BDD déjà créée)
+    baseline-on-migrate: true
+    baseline-version: 0
+    # Vérifie que les migrations déjà appliquées n'ont pas changé
+    validate-on-migrate: true
+
+  # --------------------------------------------------------------------------
+  # Kafka — bootstrap servers (listener externe = depuis ta machine)
+  # --------------------------------------------------------------------------
+  kafka:
+    bootstrap-servers: localhost:29092
+    # Producer (publication d'events)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # Garantit que tous les replicas confirment avant que le producer continue
+      acks: all
+      # Évite les doublons en cas de retry (idempotence du producer)
+      properties:
+        enable.idempotence: true
+    # Consumer (sera utilisé plus tard, on le pré-configure)
+    consumer:
+      group-id: document-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.ocrplatform.*"
+
+# ============================================================================
+# Logs (verbose en dev)
+# ============================================================================
+logging:
+  level:
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG          # Affiche les requêtes SQL générées
+    org.hibernate.orm.jdbc.bind: TRACE  # Affiche les valeurs des paramètres SQL
+    org.springframework.kafka: INFO

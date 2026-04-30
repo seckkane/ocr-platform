@@ -1,0 +1,91 @@
+# ============================================================================
+# document-service — Configuration commune (tous profiles)
+# ----------------------------------------------------------------------------
+# Ce fichier contient les paramètres communs à tous les environnements.
+# Les paramètres spécifiques (BDD, Kafka, etc.) sont dans application-{profile}.yml
+# Profile par défaut : "dev" (voir spring.profiles.active ci-dessous)
+# ============================================================================
+
+spring:
+  # --------------------------------------------------------------------------
+  # Identité de l'application
+  # --------------------------------------------------------------------------
+  application:
+    name: document-service
+
+  # --------------------------------------------------------------------------
+  # Profile actif par défaut
+  # --------------------------------------------------------------------------
+  # Si aucun profile n'est explicitement activé (via env var ou CLI),
+  # Spring active "dev" automatiquement.
+  # En prod, on override avec SPRING_PROFILES_ACTIVE=prod
+  # --------------------------------------------------------------------------
+  profiles:
+    active: dev
+
+  # --------------------------------------------------------------------------
+  # JPA / Hibernate (configuration commune)
+  # --------------------------------------------------------------------------
+  jpa:
+    # Hibernate ne génère JAMAIS le schéma BDD : c'est Flyway qui s'en occupe.
+    # 'validate' = Hibernate vérifie juste que le schéma BDD correspond aux entités.
+    hibernate:
+      ddl-auto: validate
+    # Désactive la "open session in view" (anti-pattern lent)
+    open-in-view: false
+    properties:
+      hibernate:
+        # Format SQL lisible dans les logs (uniquement utile en dev)
+        format_sql: true
+        # Évite les warnings inutiles
+        jdbc:
+          time_zone: UTC
+
+  # --------------------------------------------------------------------------
+  # Upload de fichiers (limites)
+  # --------------------------------------------------------------------------
+  servlet:
+    multipart:
+      max-file-size: 50MB        # Taille max d'un fichier uploadé
+      max-request-size: 50MB     # Taille max d'une requête multipart
+      enabled: true
+
+# ============================================================================
+# Server (Tomcat embarqué)
+# ============================================================================
+server:
+  port: 8081  # Port dédié à document-service (évite le conflit avec d'autres services)
+
+# ============================================================================
+# Actuator — Endpoints de monitoring
+# ============================================================================
+# /actuator/health    → status de l'app
+# /actuator/info      → infos de build
+# /actuator/metrics   → métriques (micrometer)
+# /actuator/prometheus → format Prometheus (Phase 4)
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # Affiche les détails du health (BDD, Kafka...) — utile en dev
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+# ============================================================================
+# Logs
+# ============================================================================
+logging:
+  pattern:
+    # Format console lisible : timestamp | niveau | thread | logger | message
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  level:
+    # Niveau global par défaut
+    root: INFO
+    # Plus verbeux pour notre code (utile en dev)
+    com.ocrplatform: DEBUG
