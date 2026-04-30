@@ -1,0 +1,215 @@
+# ============================================================================
+# OCR Platform — Infrastructure Stack (development)
+# ----------------------------------------------------------------------------
+# Démarre l'infrastructure nécessaire au développement local des microservices.
+# Lance uniquement les composants requis pour la Phase 1 (document-service) :
+#   - MySQL        : base de données pour les métadonnées des documents
+#   - MinIO        : stockage objet S3-compatible pour les fichiers
+#   - Kafka        : broker de messages (événementiel)
+#   - Kafka UI     : interface web pour explorer Kafka
+#
+# Usage :
+#   Démarrer    : docker compose -f docker-compose.infra.yml up -d
+#   Arrêter     : docker compose -f docker-compose.infra.yml down
+#   Logs        : docker compose -f docker-compose.infra.yml logs -f <service>
+#   Statut      : docker compose -f docker-compose.infra.yml ps
+#   Tout reset  : docker compose -f docker-compose.infra.yml down -v
+# ============================================================================
+
+# Réseau virtuel partagé : tous les services peuvent se parler par leur "name".
+# Un service peut joindre un autre via le nom du service (ex: "mysql:3306").
+networks:
+  ocr-network:
+    driver: bridge
+    name: ocr-network
+
+# Volumes nommés : persistent les données même si on supprime les containers.
+# Sans volumes, tu perds tes données à chaque "docker compose down".
+volumes:
+  mysql-data:
+    name: ocr-mysql-data
+  minio-data:
+    name: ocr-minio-data
+  kafka-data:
+    name: ocr-kafka-data
+
+services:
+
+  # ==========================================================================
+  # MySQL 8.4 — Base de données relationnelle
+  # --------------------------------------------------------------------------
+  # Stocke les métadonnées des documents (id, nom, taille, statut, owner...).
+  # Le fichier binaire lui-même est dans MinIO, pas en BDD.
+  # ==========================================================================
+  mysql:
+    image: mysql:8.4
+    container_name: ocr-mysql
+    restart: unless-stopped     # Redémarre auto sauf arrêt manuel
+    environment:
+      # Mot de passe root (utilisé pour l'admin uniquement, pas par les services)
+      MYSQL_ROOT_PASSWORD: rootpassword
+      # Création automatique d'une base au démarrage
+      MYSQL_DATABASE: documents_db
+      # Création automatique d'un utilisateur dédié (jamais root pour les apps !)
+      MYSQL_USER: ocr_user
+      MYSQL_PASSWORD: ocr_password
+    ports:
+      # Format : "<port_host>:<port_container>"
+      # Tu pourras te connecter depuis Windows sur localhost:3306
+      - "3306:3306"
+    volumes:
+      # Persistance des données MySQL dans le volume nommé
+      - mysql-data:/var/lib/mysql
+    networks:
+      - ocr-network
+    healthcheck:
+      # Docker vérifie périodiquement que MySQL répond bien
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ==========================================================================
+  # MinIO — Stockage objet S3-compatible
+  # --------------------------------------------------------------------------
+  # Stocke les fichiers PDF/images uploadés par les utilisateurs.
+  # API S3-compatible : le code écrit pour MinIO marche aussi avec AWS S3.
+  # ==========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: ocr-minio
+    restart: unless-stopped
+    # Commande de démarrage : "server" lance MinIO, "/data" est le dossier de stockage,
+    # "--console-address" expose la console web sur le port 9001.
+    command: server /data --console-address ":9001"
+    environment:
+      # Credentials d'admin (équivalent AWS Access Key / Secret Key)
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"   # API S3 (utilisée par les services)
+      - "9001:9001"   # Console web (UI pour explorer les buckets)
+    volumes:
+      # Persistance des objets uploadés
+      - minio-data:/data
+    networks:
+      - ocr-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==========================================================================
+  # MinIO Init — Création automatique du bucket "documents"
+  # --------------------------------------------------------------------------
+  # Container "one-shot" (s'exécute une fois puis s'arrête) qui :
+  #   1. Attend que MinIO soit prêt
+  #   2. Crée le bucket "documents" s'il n'existe pas
+  #   3. Définit la politique d'accès
+  # Évite de devoir créer le bucket manuellement à chaque "docker compose up".
+  # ==========================================================================
+  minio-init:
+    image: minio/mc:latest      # mc = MinIO Client
+    container_name: ocr-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - ocr-network
+    # Script d'init : exécuté UNE FOIS au démarrage
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123;
+      mc mb --ignore-existing local/documents;
+      mc anonymous set download local/documents;
+      echo '[OK] MinIO bucket documents created';
+      exit 0;
+      "
+
+  # ==========================================================================
+  # Apache Kafka 3.8 (mode KRaft, sans Zookeeper) — image officielle Apache
+  # --------------------------------------------------------------------------
+  # Broker de messages persistant. KRaft = nouveau mode (depuis Kafka 3.3+),
+  # plus simple que Zookeeper, c'est le standard moderne.
+  #
+  # On utilise l'image OFFICIELLE Apache (apache/kafka) :
+  #   - Maintenue directement par l'équipe Kafka
+  #   - Tags publics et stables
+  #   - Configuration via variables d'environnement KAFKA_*
+  #
+  # Notion clé : "advertised listeners" = adresse que Kafka annonce aux clients.
+  #   - "kafka:9092"      → utilisé par les autres CONTAINERS du réseau Docker
+  #   - "localhost:29092" → utilisé depuis ta MACHINE (Spring Boot en local)
+  # ==========================================================================
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: ocr-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"     # Listener interne (containers)
+      - "29092:29092"   # Listener externe (depuis ta machine Windows)
+    environment:
+      # ----- KRaft mode (sans Zookeeper) -----
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # ----- Listeners (deux : un interne, un externe) -----
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # ----- Auto-création des topics (pratique en dev, à désactiver en prod) -----
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # ----- Réplication (1 en dev car broker unique, 3 en prod) -----
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # ----- Cluster ID (obligatoire en mode KRaft) -----
+      # Généré une fois pour toutes (UUID base64). Ne pas changer après init.
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      # ----- Répertoire des logs Kafka (à l'intérieur du container) -----
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - ocr-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  # ==========================================================================
+  # Kafka UI — Interface web pour explorer Kafka
+  # --------------------------------------------------------------------------
+  # Permet de voir les topics, les messages, les consumers en temps réel.
+  # Accessible sur http://localhost:8090 — INDISPENSABLE en dev.
+  # ==========================================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ocr-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      # Nom du cluster affiché dans l'UI
+      KAFKA_CLUSTERS_0_NAME: ocr-local
+      # Adresse du broker (vue depuis le container kafka-ui = réseau Docker)
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - ocr-network
