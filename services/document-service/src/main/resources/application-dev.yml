@@ -76,6 +76,8 @@ spring:
 logging:
   level:
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG          # Affiche les requêtes SQL générées
-    org.hibernate.orm.jdbc.bind: TRACE  # Affiche les valeurs des paramètres SQL
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
     org.springframework.kafka: INFO
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
+    org.springframework.web.servlet.DispatcherServlet: WARN

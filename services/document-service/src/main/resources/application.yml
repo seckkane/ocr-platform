@@ -77,15 +77,3 @@ management:
     env:
       enabled: true
 
-# ============================================================================
-# Logs
-# ============================================================================
-logging:
-  pattern:
-    # Format console lisible : timestamp | niveau | thread | logger | message
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
-  level:
-    # Niveau global par défaut
-    root: INFO
-    # Plus verbeux pour notre code (utile en dev)
-    com.ocrplatform: DEBUG
