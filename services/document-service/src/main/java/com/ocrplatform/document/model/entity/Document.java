@@ -9,12 +9,12 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.DynamicUpdate;
 
 /**
@@ -32,12 +32,13 @@ import org.hibernate.annotations.DynamicUpdate;
         @Index(name = "idx_documents_status",     columnList = "status"),
         @Index(name = "idx_documents_created_at", columnList = "created_at")
 })
-@DynamicUpdate
+@DynamicUpdate //Hibernate n’update que les champs modifiés
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
+//n'ignore pas les champs du parent
+@SuperBuilder
+//évite d’afficher clé de stockage (sécurité/logs)
 @ToString(callSuper = true, exclude = {"storageKey"})
 public class Document extends BaseEntity {
 

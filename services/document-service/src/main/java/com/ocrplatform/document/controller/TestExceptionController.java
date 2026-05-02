@@ -3,6 +3,7 @@ package com.ocrplatform.document.controller;
 import com.ocrplatform.document.exception.DocumentNotFoundException;
 import com.ocrplatform.document.exception.ErrorCode;
 import com.ocrplatform.document.exception.StorageException;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Controller temporaire pour tester le GlobalExceptionHandler.
  * À SUPPRIMER après validation de la Phase 2.
  */
+
+@Profile("!prod")
 @RestController
 @RequestMapping("/api/test/errors")
 public class TestExceptionController {
