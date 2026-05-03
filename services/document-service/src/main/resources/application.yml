@@ -71,9 +71,22 @@ management:
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      # Affiche les détails du health (BDD, Kafka...) — utile en dev
       show-details: always
-  info:
-    env:
-      enabled: true
+  metrics:
+    tags:
+      application: document-service
+
+# ============================================================================
+# OpenAPI / Swagger UI
+# ============================================================================
+# /v3/api-docs       → spec OpenAPI JSON
+# /swagger-ui.html   → UI interactive
+# ============================================================================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
 

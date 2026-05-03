@@ -35,6 +35,7 @@ public class StorageServiceImpl implements StorageService {
     private final MinioClient minioClient;
     private final StorageProperties props;
 
+
     /**
      * Crée le bucket au démarrage s'il n'existe pas.
      * Idempotent : safe à exécuter à chaque démarrage.

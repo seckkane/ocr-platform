@@ -213,3 +213,24 @@ services:
       DYNAMIC_CONFIG_ENABLED: "true"
     networks:
       - ocr-network
+
+  # ==========================================================================
+  # Keycloak — Identity & Access Management (OAuth2 / OpenID Connect)
+  # --------------------------------------------------------------------------
+  # Fournit l'authentification (JWT) pour les microservices.
+  # Mode dev-file : persistance H2 dans /opt/keycloak/data
+  # Console admin : http://localhost:8180
+  # ==========================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: ocr-keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    networks:
+      - ocr-network

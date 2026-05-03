@@ -48,6 +48,16 @@ spring:
     validate-on-migrate: true
 
   # --------------------------------------------------------------------------
+  # Security — OAuth2 Resource Server (Keycloak)
+  # --------------------------------------------------------------------------
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ocr-platform
+          jwk-set-uri: http://localhost:8180/realms/ocr-platform/protocol/openid-connect/certs
+
+  # --------------------------------------------------------------------------
   # Kafka — bootstrap servers (listener externe = depuis ta machine)
   # --------------------------------------------------------------------------
   kafka:

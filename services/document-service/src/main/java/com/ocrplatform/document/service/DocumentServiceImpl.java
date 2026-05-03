@@ -9,6 +9,9 @@ import com.ocrplatform.document.exception.ErrorCode;
 import com.ocrplatform.document.model.entity.Document;
 import com.ocrplatform.document.model.enums.DocumentStatus;
 import com.ocrplatform.document.repository.DocumentRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 
 @Slf4j
@@ -42,14 +46,22 @@ public class DocumentServiceImpl implements DocumentService {
     private final StorageService storageService;
     private final ApplicationEventPublisher eventPublisher;
 
+    private final Counter documentsUploadedCounter;
+    private final Counter documentsFailedCounter;
+    private final Timer documentUploadTimer;
+    private final DistributionSummary documentSizeSummary;
+
     @Override
     @Transactional
     public Document upload(MultipartFile file, String ownerId) {
+        return documentUploadTimer.record(() -> doUpload(file, ownerId));
+    }
+
+    private Document doUpload(MultipartFile file, String ownerId) {
         validate(file, ownerId);
 
         String storageKey = null;
         try {
-            // 1. Stockage MinIO
             storageKey = storageService.store(
                     inputStream(file),
                     file.getOriginalFilename(),
@@ -57,7 +69,6 @@ public class DocumentServiceImpl implements DocumentService {
                     file.getSize()
             );
 
-            // 2. Persist BDD
             Document doc = Document.builder()
                     .originalName(file.getOriginalFilename())
                     .contentType(file.getContentType())
@@ -68,15 +79,18 @@ public class DocumentServiceImpl implements DocumentService {
                     .build();
             doc = documentRepository.save(doc);
 
-            // 3. Audit (async, ne bloque pas)
             eventPublisher.publishEvent(new DocumentUploadedEvent(this, doc));
+
+            // Metriques succes
+            documentsUploadedCounter.increment();
+            documentSizeSummary.record(doc.getSizeBytes());
 
             log.info("Document uploaded: id={}, owner={}, size={}",
                     doc.getId(), ownerId, doc.getSizeBytes());
             return doc;
 
         } catch (RuntimeException e) {
-            // Audit de l'échec (id null si l'upload a planté avant le save BDD)
+            documentsFailedCounter.increment();
             eventPublisher.publishEvent(new DocumentFailedEvent(
                     this,
                     AuditEventType.DOCUMENT_UPLOAD_FAILED,
@@ -87,6 +101,13 @@ public class DocumentServiceImpl implements DocumentService {
             ));
             throw e;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InputStream getContent(String id) {
+        Document doc = getById(id);
+        return storageService.retrieve(doc.getStorageKey());
     }
 
     @Override

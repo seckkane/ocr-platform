@@ -1,0 +1,32 @@
+# ============================================================================
+# document-service — Profile TEST
+# ----------------------------------------------------------------------------
+# Configuration pour les tests d'integration (Testcontainers).
+# Les URLs de connexion (MySQL, MinIO, Kafka) sont injectees dynamiquement
+# par les @DynamicPropertySource des classes de test, donc on laisse vide ici.
+# ============================================================================
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# Securite : on desactive la validation JWT pour la majorite des tests.
+# Pour les tests qui ont besoin de tester la security, on utilisera @WithMockUser.
+# Le fait de ne pas declarer issuer-uri ici suffit a desactiver l'autoconfig.
+
+storage:
+  bucket: documents-test
+
+ocr:
+  kafka:
+    topics:
+      document-uploaded: documents.uploaded.test
