@@ -28,7 +28,7 @@ spring:
   # JPA — paramètres dev (verbeux)
   # --------------------------------------------------------------------------
   jpa:
-    show-sql: true              # Affiche les requêtes SQL dans la console
+    show-sql: false              # Affiche les requêtes SQL dans la console
     properties:
       hibernate:
         # Dialect MySQL 8 (auto-détecté en général, mais on est explicite)
@@ -76,8 +76,15 @@ spring:
 logging:
   level:
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.SQL: INFO
+    org.hibernate.orm.jdbc.bind: INFO
     org.springframework.kafka: INFO
     org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
     org.springframework.web.servlet.DispatcherServlet: WARN
+
+# ===== Stockage objet (MinIO local via docker-compose.infra.yml) =====
+storage:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin123
+  bucket: documents

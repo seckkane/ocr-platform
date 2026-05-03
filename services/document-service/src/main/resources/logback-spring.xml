@@ -59,7 +59,7 @@
     <springProfile name="dev">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
-                <pattern>${CONSOLE_LOG_PATTERN_DEV}</pattern>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%-15.15thread] [%X{correlationId:-no-corr}] %-40.40logger{0} - %msg%n%ex{full,${EXCLUDED_FRAMES:-}}</pattern>
                 <charset>UTF-8</charset>
             </encoder>
         </appender>

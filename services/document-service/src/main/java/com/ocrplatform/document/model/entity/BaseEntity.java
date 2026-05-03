@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -57,6 +58,7 @@ public abstract class BaseEntity {
 
     @Id
     @Column(name = "id", length = 36, nullable = false, updatable = false)
+    @Builder.Default
     private String id = UUID.randomUUID().toString();
 
     @CreatedDate
