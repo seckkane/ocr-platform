@@ -88,3 +88,9 @@ storage:
   access-key: minioadmin
   secret-key: minioadmin123
   bucket: documents
+
+# ===== Topics Kafka (noms centralises) =====
+ocr:
+  kafka:
+    topics:
+      document-uploaded: documents.uploaded
