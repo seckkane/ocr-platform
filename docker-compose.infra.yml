@@ -46,13 +46,15 @@ services:
     container_name: ocr-mysql
     restart: unless-stopped     # Redémarre auto sauf arrêt manuel
     environment:
-      # Mot de passe root (utilisé pour l'admin uniquement, pas par les services)
-      MYSQL_ROOT_PASSWORD: rootpassword
-      # Création automatique d'une base au démarrage
-      MYSQL_DATABASE: documents_db
-      # Création automatique d'un utilisateur dédié (jamais root pour les apps !)
-      MYSQL_USER: ocr_user
-      MYSQL_PASSWORD: ocr_password
+      # Mot de passe root (admin uniquement, pas utilise par les services applicatifs)
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      # Creation automatique d'une base au demarrage
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-documents_db}
+      # Creation automatique d'un utilisateur dedie (jamais root pour les apps !)
+      # Syntax ${VAR:-default} = utilise la variable d'env si definie, sinon "default".
+      # En prod, on definira MYSQL_USER et MYSQL_PASSWORD via .env ou secrets manager.
+      MYSQL_USER: ${MYSQL_USER:-ocr_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ocr_password}
     ports:
       # Format : "<port_host>:<port_container>"
       # Tu pourras te connecter depuis Windows sur localhost:3306
@@ -84,9 +86,10 @@ services:
     # "--console-address" expose la console web sur le port 9001.
     command: server /data --console-address ":9001"
     environment:
-      # Credentials d'admin (équivalent AWS Access Key / Secret Key)
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      # Credentials d'admin (equivalent AWS Access Key / Secret Key)
+      # En prod, OBLIGATOIRE de redefinir via variables d'env.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
       - "9000:9000"   # API S3 (utilisée par les services)
       - "9001:9001"   # Console web (UI pour explorer les buckets)

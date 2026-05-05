@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+
+    <!-- ====================================================================== -->
+    <!-- Faux positifs SYSTEMIQUES : Spring DI                                  -->
+    <!-- ====================================================================== -->
+    <!-- EI_EXPOSE_REP / EI_EXPOSE_REP2 : SpotBugs warn quand un constructeur   -->
+    <!-- recoit un objet et le stocke. C'est EXACTEMENT ce que fait Spring DI.  -->
+    <!-- Dans un projet Spring, ces warnings n'ont AUCUN sens : les beans sont  -->
+    <!-- gérés par le conteneur, donc pas d'effet de bord realiste.             -->
+    <!-- ====================================================================== -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Classes generees par Lombok (builders, etc.) -->
+    <Match>
+        <Class name="~.*\$.*Builder.*"/>
+    </Match>
+
+    <!-- Classes generees par Spring (CGLIB proxies) -->
+    <Match>
+        <Class name="~.*\$\$SpringCGLIB.*"/>
+    </Match>
+
+    <!-- Application main class (triviale, juste un main()) -->
+    <Match>
+        <Class name="com.ocrplatform.document.DocumentServiceApplication"/>
+    </Match>
+
+</FindBugsFilter>

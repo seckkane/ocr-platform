@@ -1,0 +1,49 @@
+# ============================================================================
+# Gitleaks configuration — OCR Platform
+# ----------------------------------------------------------------------------
+# Detecte les secrets accidentellement commit dans le code.
+# Etend les regles built-in de gitleaks avec une allowlist projet-specifique.
+# ============================================================================
+
+title = "OCR Platform Gitleaks Config"
+
+# On etend les regles par defaut de gitleaks (ne pas redefinir from scratch)
+[extend]
+useDefault = true
+
+# ----------------------------------------------------------------------------
+# Allowlist : faux positifs reconnus
+# ----------------------------------------------------------------------------
+[allowlist]
+description = "Allowlist for OCR Platform false positives"
+
+# Fichiers ignores par le scanner
+paths = [
+    '''.*\.md$''',                    # Documentation
+    '''.*\.gitleaks\.toml$''',        # Le fichier de config lui-meme
+    '''target/.*''',                  # Build artifacts (au cas ou)
+    '''build/.*''',
+    '''node_modules/.*''',
+    '''\.idea/.*''',
+    '''\.vscode/.*''',
+]
+
+# Strings autorisees a apparaitre dans le code
+# IMPORTANT : ces valeurs sont des credentials par DEFAUT pour le DEV LOCAL.
+# En production, elles sont OBLIGATOIREMENT override par variables d'environnement.
+# Voir docker-compose.infra.yml et application-prod.yml.
+regexes = [
+    # ===== MinIO dev local =====
+    '''minioadmin''',                 # MinIO root user (default officiel MinIO)
+    '''minioadmin123''',              # MinIO root password (dev local uniquement)
+
+    # ===== MySQL dev local =====
+    '''ocr_user''',                   # MySQL user (dev local)
+    '''ocr_password''',               # MySQL password (dev local uniquement)
+    '''rootpassword''',               # MySQL root (dev local uniquement)
+
+    # ===== Keycloak dev local =====
+    '''admin''',                      # Keycloak admin user (dev local)
+    # NB : le client_secret Keycloak n'est PAS allowliste expres.
+    # S'il apparait dans le code, c'est un bug a corriger immediatement.
+]
