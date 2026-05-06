@@ -1,16 +1,20 @@
 # ============================================================================
-# document-service — Profile PROD (production)
+# document-service — Profile STAGING (pre-production VPS)
 # ----------------------------------------------------------------------------
-# Configuration pour l'environnement de PRODUCTION reel.
-# Hardening maximal : logs minimaux, endpoints minimaux, pas de leak d'info.
+# Configuration pour l'environnement de pre-production sur VPS Contabo.
+# Sert aux tests UAT, demos client, validation avant prod.
 #
-# REGLE ABSOLUE : aucun secret. TOUT vient de variables d'environnement.
-# Tous les ${VAR} sans default forcent un fail-fast si non definis.
+# REGLE D'OR : aucun secret hardcode. Tout vient des variables d'environnement
+# definies dans docker-compose.staging.yml (lui-meme alimente par .env non commite).
+#
+# Pattern : ${VAR_NAME:default}
+#   - Si default present : valeur de fallback (utile pour URLs publiques)
+#   - Si default absent : Spring fail-fast au demarrage si variable manquante
 # ============================================================================
 
 spring:
   # --------------------------------------------------------------------------
-  # DataSource — MySQL production
+  # DataSource — MySQL staging
   # --------------------------------------------------------------------------
   datasource:
     url: ${MYSQL_URL}
@@ -19,37 +23,34 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       pool-name: DocumentServiceHikariPool
-      maximum-pool-size: 30
-      minimum-idle: 10
+      maximum-pool-size: 20
+      minimum-idle: 5
       connection-timeout: 30000
+      # Verifie les connexions periodiquement (utile si VPS coupe les sockets idle)
       keepalive-time: 60000
-      # Detection des connexions coupees
-      validation-timeout: 5000
 
   # --------------------------------------------------------------------------
-  # JPA — minimal
+  # JPA — minimal logging
   # --------------------------------------------------------------------------
   jpa:
     show-sql: false
     properties:
       hibernate:
+        # Pas de format_sql en staging (perfs + secu)
         format_sql: false
-        # Cache de second niveau (a activer plus tard avec Caffeine/Redis)
-        # cache.use_second_level_cache: true
 
   # --------------------------------------------------------------------------
-  # Flyway — strict en prod
+  # Flyway — strict en staging
   # --------------------------------------------------------------------------
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # FAUX en staging/prod : Flyway doit refuser de "sauter" des migrations
     baseline-on-migrate: false
     validate-on-migrate: true
-    # Verrou exclusif pour eviter les races en cas de scaling horizontal
-    # (plusieurs instances qui demarrent en meme temps)
 
   # --------------------------------------------------------------------------
-  # Security — Keycloak production
+  # Security — Keycloak staging
   # --------------------------------------------------------------------------
   security:
     oauth2:
@@ -59,7 +60,7 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
 
   # --------------------------------------------------------------------------
-  # Kafka — production
+  # Kafka — broker staging
   # --------------------------------------------------------------------------
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
@@ -78,50 +79,45 @@ spring:
         spring.json.trusted.packages: "com.ocrplatform.*"
 
 # ============================================================================
-# Logs — minimal (WARN par defaut)
+# Logs (INFO uniquement en staging)
 # ============================================================================
 logging:
   level:
-    root: WARN
+    root: INFO
     com.ocrplatform: INFO
-    org.springframework: WARN
+    org.springframework.web: WARN
     org.hibernate: WARN
     org.springframework.kafka: WARN
 
 # ============================================================================
-# Server — hardening maximal
+# Server — durcissement HTTP
 # ============================================================================
 server:
   error:
+    # Pas de leak d'info en cas d'erreur
     include-message: never
     include-binding-errors: never
     include-stacktrace: never
     include-exception: false
-    whitelabel:
-      enabled: false
 
 # ============================================================================
-# Actuator — endpoints minimaux en prod
+# Actuator — endpoints exposes en staging
 # ----------------------------------------------------------------------------
-# /metrics retire de l'expose public (info trop sensible).
-# /prometheus reste disponible mais devra etre filtre par le reverse proxy
-# (uniquement accessible depuis IP Prometheus).
+# show-details: when-authorized = les details health ne sont visibles que si
+# l'appelant est authentifie avec le bon role (a configurer plus tard).
 # ============================================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: never
-      show-components: never
-  info:
-    env:
-      enabled: false
+      show-details: when-authorized
+      show-components: when-authorized
 
 # ============================================================================
-# Stockage objet (MinIO prod)
+# Stockage objet (MinIO staging)
 # ============================================================================
 storage:
   endpoint: ${MINIO_ENDPOINT}
