@@ -31,8 +31,7 @@ import java.util.UUID;
  * @see com.ocrplatform.document.audit.event.DocumentUploadedEvent
  * @see com.ocrplatform.document.audit.event.DocumentFailedEvent
  */
-
-@Profile("!prod")
+@Profile("dev")
 @Slf4j
 @RestController
 @RequestMapping("/api/test/audit")

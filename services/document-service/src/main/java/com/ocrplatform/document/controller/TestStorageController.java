@@ -17,7 +17,7 @@ import java.io.IOException;
  * Outil DEV : valide isolément le StorageService avant câblage avec DocumentService.
  * Profile-protégé.
  */
-@Profile("!prod")
+@Profile("dev")
 @Slf4j
 @RestController
 @RequestMapping("/api/test/storage")
