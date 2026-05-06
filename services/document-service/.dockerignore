@@ -1,0 +1,48 @@
+# ============================================================================
+# .dockerignore — exclusions du contexte Docker
+# ----------------------------------------------------------------------------
+# Tout ce qui est ici n'est PAS envoye au daemon Docker pendant le build.
+# But : reduire la taille du contexte (build plus rapide) + eviter de copier
+# des fichiers inutiles ou sensibles dans l'image.
+# ============================================================================
+
+# ===== Build artifacts (jamais dans l'image, builder s'en charge) =====
+target/
+build/
+
+# ===== IDEs =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# ===== Git =====
+.git/
+.gitignore
+.gitattributes
+
+# ===== Logs et fichiers temporaires =====
+*.log
+logs/
+*.tmp
+*.bak
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Docker (pas besoin de copier le Dockerfile dans l'image) =====
+Dockerfile
+.dockerignore
+
+# ===== Documentation (pas necessaire dans l'image) =====
+README.md
+docs/
+*.md
+
+# ===== Config locale =====
+.env
+.env.*
+!.env.example
+!.env.*.example
