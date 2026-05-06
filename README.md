@@ -36,7 +36,7 @@ L'architecture suit les principes **microservices** et **event-driven**, avec un
         └───────┬────────┘ └────────┬───────┘ └────────▲───────┘
                 │                   │                  │
                 └─────────► Kafka ◄─┴──────────────────┘
-                                    
+
         ┌──────────────────────────────────────────────────┐
         │                  INFRASTRUCTURE                  │
         │ MinIO · Kafka · Elasticsearch · MySQL · Redis    │
