@@ -19,13 +19,19 @@ description = "Allowlist for OCR Platform false positives"
 
 # Fichiers ignores par le scanner
 paths = [
-    '''.*\.md$''',                    # Documentation
-    '''.*\.gitleaks\.toml$''',        # Le fichier de config lui-meme
-    '''target/.*''',                  # Build artifacts (au cas ou)
+    '''.*\.md$''',                       # Documentation
+    '''.*\.gitleaks\.toml$''',           # Le fichier de config lui-meme
+    '''target/.*''',                     # Build artifacts (au cas ou)
     '''build/.*''',
     '''node_modules/.*''',
     '''\.idea/.*''',
     '''\.vscode/.*''',
+
+    # Templates .env documentes (jamais commiter de vrais secrets)
+    # Les vrais .env (.env, .env.staging, .env.prod) sont gitignores.
+    # Les .env.*.example contiennent UNIQUEMENT des placeholders ("CHANGE_ME...").
+    '''.*\.env\.example$''',
+    '''.*\.env\..*\.example$''',
 ]
 
 # Strings autorisees a apparaitre dans le code

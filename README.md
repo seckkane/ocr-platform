@@ -192,6 +192,77 @@ pre-commit install --hook-type commit-msg
 ```
 
 ---
+## 🌍 Stratégie multi-environnement
+
+Le projet utilise **3 environnements** + un profil de test, alignés sur le Git Flow.
+
+### Profils Spring Boot
+
+| Profile | Quand activé | Usage |
+|---------|--------------|-------|
+| `dev` | Défaut local (aucune env var) | Dev quotidien sur ta machine, infra Docker locale |
+| `test` | Auto via `@ActiveProfiles("test")` | Tests d'intégration Testcontainers |
+| `staging` | `SPRING_PROFILES_ACTIVE=staging` | Pré-production sur VPS (UAT, démos, validation) |
+| `prod` | `SPRING_PROFILES_ACTIVE=prod` | Production réelle |
+
+Les fichiers de config sont dans `services/document-service/src/main/resources/` :
+
+application.yml           # Commun (port, JPA, actuator, springdoc)
+application-dev.yml       # Credentials Docker locaux hardcodés (OK car local)
+application-test.yml      # URLs injectées par Testcontainers
+application-staging.yml   # 100% env-vars (fail-fast si variable manquante)
+application-prod.yml      # 100% env-vars + hardening maximal
+
+### Niveaux de durcissement
+
+| Aspect | dev | staging | prod |
+|--------|-----|---------|------|
+| Secrets | Hardcodés (Docker local) | Env vars obligatoires | Env vars obligatoires |
+| Logs | DEBUG/INFO verbeux | INFO | WARN + INFO app uniquement |
+| `format_sql` | true (lisible) | false | false |
+| Actuator endpoints | health, info, metrics, prometheus | idem (auth requise) | health, info, prometheus |
+| `health.show-details` | always | when-authorized | never |
+| Flyway `baseline-on-migrate` | true | false | false |
+| Stacktraces HTTP | défaut Spring | masquées | masquées + whitelabel off |
+
+### Mapping Git Flow → Environnement
+
+| Branche | Environnement cible | Trigger deploy |
+|---------|---------------------|----------------|
+| `feat/*` | dev local + CI tests | Pre-commit hooks + GitHub Actions |
+| `develop` | staging (futur) | Sera : push merge → deploy staging auto |
+| `main` | prod (futur) | Sera : tag `v*.*.*` → deploy prod manuel |
+
+### Lancer document-service en local (profile dev)
+
+```bash
+# Aucune variable d'env requise, dev est le défaut
+cd services/document-service
+./mvnw spring-boot:run
+```
+
+### Lancer en staging ou prod (futur, sur VPS)
+
+```bash
+# 1. Copier le template approprié
+cp .env.staging.example .env.staging
+
+# 2. Remplir avec les VRAIES valeurs
+nano .env.staging
+
+# 3. Lancer via docker-compose en chargeant le fichier
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d
+```
+
+> ⚠️ **Les fichiers `.env.staging` et `.env.prod` ne sont JAMAIS commités** (ils sont dans `.gitignore`).
+> Seuls les templates `.env.staging.example` et `.env.prod.example` sont versionnés.
+
+---
+
+
+
+
+
 
 ## 🧪 Tests & Qualité
 
