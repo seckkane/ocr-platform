@@ -130,11 +130,3 @@ public class StorageServiceImpl implements StorageService {
         return dot >= 0 ? filename.substring(dot) : "";
     }
 }
-
-
-
-
-
-
-
-

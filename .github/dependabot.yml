@@ -1,0 +1,84 @@
+# ============================================================================
+# Dependabot configuration
+# ----------------------------------------------------------------------------
+# Met a jour automatiquement les dependances obsoletes via Pull Requests.
+#
+# Ecosystemes scannes :
+#   - Maven (Java/Spring)
+#   - GitHub Actions (workflows)
+#   - Docker (Dockerfiles, futur ocr-service)
+#
+# Frequence : hebdomadaire (lundi matin), pour eviter le spam de PR.
+# ============================================================================
+
+version: 2
+
+updates:
+
+  # ========================================================================
+  # Maven : document-service (Spring Boot)
+  # ========================================================================
+  - package-ecosystem: "maven"
+    directory: "/services/document-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "maven"
+      - "document-service"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+          - "org.springframework.kafka*"
+          - "org.springframework.security*"
+      testcontainers:
+        patterns:
+          - "org.testcontainers*"
+      jackson:
+        patterns:
+          - "com.fasterxml.jackson*"
+
+  # ========================================================================
+  # GitHub Actions : workflows CI/CD
+  # ========================================================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+
+  # ========================================================================
+  # Docker : Dockerfiles (futur ocr-service)
+  # ========================================================================
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"

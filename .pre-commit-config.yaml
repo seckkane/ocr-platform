@@ -1,0 +1,84 @@
+# ============================================================================
+# pre-commit configuration
+# ----------------------------------------------------------------------------
+# Hooks executes en local AVANT chaque "git commit".
+# Si un check echoue, le commit est annule.
+#
+# Setup (une fois) :
+#   uv tool install pre-commit
+#   pre-commit install
+#
+# Run manuel sur tous les fichiers :
+#   pre-commit run --all-files
+#
+# Mise a jour des versions de hooks :
+#   pre-commit autoupdate
+# ============================================================================
+
+repos:
+
+  # ----------------------------------------------------------------------
+  # Hooks essentiels (verifications de base)
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Supprime les espaces en fin de ligne
+      - id: end-of-file-fixer
+        # Force un newline en fin de fichier
+      - id: check-yaml
+        # Valide la syntaxe YAML
+        args: ['--unsafe']  # Pour les YAML avec tags (Spring profiles)
+      - id: check-json
+        # Valide la syntaxe JSON
+      - id: check-toml
+        # Valide la syntaxe TOML
+      - id: check-merge-conflict
+        # Detecte les marqueurs <<<<<<< HEAD non resolus
+      - id: check-added-large-files
+        # Bloque les fichiers > 500KB par defaut
+        args: ['--maxkb=1000']
+      - id: detect-private-key
+        # Bloque les cles SSH/SSL privees
+      - id: mixed-line-ending
+        # Force des fins de ligne coherentes
+        args: ['--fix=lf']
+
+  # ----------------------------------------------------------------------
+  # Gitleaks : detection de secrets (cle API, mots de passe, etc.)
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # ----------------------------------------------------------------------
+  # Conventional Commits : valide le format des messages de commit
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - chore
+          - docs
+          - style
+          - refactor
+          - perf
+          - test
+          - build
+          - ci
+          - revert
+
+  # ----------------------------------------------------------------------
+  # Dockerfile linting (pour le futur ocr-service)
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        # Lint des Dockerfiles
