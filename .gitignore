@@ -11,11 +11,11 @@ target/
 *.nar
 hs_err_pid*
 replay_pid*
-.mvn/
-mvnw
-mvnw.cmd
+# NOTE : Maven Wrapper (.mvn/, mvnw, mvnw.cmd) DOIT etre commite.
+# Sans lui, la CI Linux echoue ("./mvnw: No such file").
+# Ne PAS l'ignorer ici.
 
-# ====== Gradle (au cas où) ======
+# ====== Gradle (au cas ou) ======
 .gradle/
 build/
 
@@ -59,7 +59,7 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# ====== OS — macOS / Linux (au cas où on bosse à plusieurs) ======
+# ====== OS — macOS / Linux ======
 .DS_Store
 *.swp
 *.swo
@@ -71,17 +71,21 @@ log/
 
 # ====== Secrets et configurations locales ======
 # IMPORTANT : ne JAMAIS commiter de secrets !
+# On ignore TOUS les .env (sauf les *.example qui sont des templates).
 .env
-.env.local
-.env.*.local
+.env.*
 *.pem
 *.key
 secrets/
 application-local.yml
 application-local.properties
 
+# Mais on AUTORISE les fichiers d'exemple (templates documentes)
+!.env.example
+!.env.*.example
+
 # ====== Docker ======
-# Volumes de données Docker (locaux)
+# Volumes de donnees Docker (locaux)
 docker-data/
 .docker/
 

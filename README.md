@@ -1,7 +1,14 @@
 # 📄 OCR Platform
 
 > Plateforme de gestion documentaire avec OCR automatique et recherche full-text.
-> Architecture microservices événementielle (event-driven).
+> Architecture microservices événementielle (event-driven), production-ready.
+
+[![document-service CI](https://github.com/seckkane/ocr-platform/actions/workflows/document-service-ci.yml/badge.svg?branch=develop)](https://github.com/seckkane/ocr-platform/actions/workflows/document-service-ci.yml)
+[![CodeQL](https://github.com/seckkane/ocr-platform/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/seckkane/ocr-platform/actions/workflows/codeql.yml)
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-green.svg)](https://spring.io/projects/spring-boot)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
+[![License](https://img.shields.io/badge/license-Internal-blue.svg)](LICENSE)
 
 ---
 
@@ -16,33 +23,47 @@ L'architecture suit les principes **microservices** et **event-driven**, avec un
 
 ---
 
+## ✅ Statut actuel
+
+| Service | Stack | Statut |
+|---------|-------|--------|
+| `document-service` | Java 21 / Spring Boot 3.5 | ✅ **Production-ready** |
+| `ocr-service` | Python 3.12 / FastAPI / Tesseract | 🚧 En cours |
+| `search-service` | Java 21 / Spring Boot / Elasticsearch | 📋 Planifié |
+| `gateway` | Spring Cloud Gateway | 📋 Planifié |
+
+---
+
 ## 🏗️ Architecture
 
-```
-                            ┌─────────────┐
-                            │   CLIENT    │
-                            └──────┬──────┘
-                                   │ HTTPS
-                            ┌──────▼──────┐
-                            │   GATEWAY   │  Auth (Keycloak) · Routing · Rate Limit
-                            │ Spring Boot │
-                            └──┬───┬───┬──┘
-                ┌──────────────┘   │   └──────────────┐
-                │                  │                  │
-        ┌───────▼────────┐ ┌───────▼────────┐ ┌───────▼────────┐
-        │ document-svc   │ │   ocr-service  │ │  search-svc    │
-        │  Spring Boot   │ │     FastAPI    │ │  Spring Boot   │
-        │  Upload+MinIO  │ │ PaddleOCR/Tess │ │ Elasticsearch  │
-        └───────┬────────┘ └────────┬───────┘ └────────▲───────┘
-                │                   │                  │
-                └─────────► Kafka ◄─┴──────────────────┘
-                                    
-        ┌──────────────────────────────────────────────────┐
-        │                  INFRASTRUCTURE                  │
-        │ MinIO · Kafka · Elasticsearch · MySQL · Redis    │
-        │ Keycloak · Eureka · Prometheus · Grafana         │
-        └──────────────────────────────────────────────────┘
-```
+## 🏗️ Architecture
+
+```text
+                    ┌─────────────┐
+                    |   CLIENT         |
+                    └──────┬──────┘
+                            HTTPS
+                    ┌──────▼──────┐
+                    |   GATEWAY        │
+                    | Spring Boot      │
+                    | Auth · Routing · Rate Limit
+                    └──┬────┬────┬──┘
+        ┌───────────┘            └──────────────┐
+        │                      |                         |
+┌───────▼────────┐ ┌────────▼────────┐ ┌────────▼────────┐
+│ document-svc         | │  ocr-service          | │  search-svc           │
+│ Spring Boot          | │   FastAPI             | │ Spring Boot           │
+│ Upload + MinIO       | │ PaddleOCR/Tess        | │ Elasticsearch         │
+└───────┬────────┘ └────────┬────────┘ └────────▲────────┘
+           │                         │                         │
+           └───────────► Kafka  ◄───────────────────┘
+
+┌────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE                                              │
+│ MinIO · Kafka · Elasticsearch · MySQL · Redis                                  │
+│ Keycloak · Prometheus · Grafana                                                │
+└────────────────────────────────────────────────────────────┘
+
 
 ### Flow de traitement d'un document
 
@@ -56,13 +77,15 @@ L'architecture suit les principes **microservices** et **event-driven**, avec un
 
 ## 📁 Structure du monorepo
 
-```
 ocr-platform/
+├── .github/
+│   ├── workflows/             # GitHub Actions (CI, CodeQL)
+│   └── dependabot.yml         # Updates auto des dépendances
 ├── services/                  # Microservices applicatifs
 │   ├── document-service/      # Spring Boot — Upload & stockage
-│   ├── ocr-service/           # FastAPI — Extraction OCR
-│   ├── search-service/        # Spring Boot — Indexation & recherche
-│   └── gateway/               # Spring Cloud Gateway
+│   ├── ocr-service/           # FastAPI — Extraction OCR (à venir)
+│   ├── search-service/        # Spring Boot — Indexation (à venir)
+│   └── gateway/               # Spring Cloud Gateway (à venir)
 ├── infrastructure/            # Configurations infra
 │   ├── keycloak/              # Realm exports
 │   ├── kafka/                 # Topics initialization
@@ -73,30 +96,54 @@ ocr-platform/
 │   ├── adr/                   # Architecture Decision Records
 │   └── api/                   # Spécifications OpenAPI
 ├── scripts/                   # Scripts utilitaires
-├── docker-compose.yml         # Stack complète (dev local)
-└── docker-compose.infra.yml   # Infra uniquement (sans services)
-```
+├── .editorconfig              # Formatage uniforme inter-IDE
+├── .gitleaks.toml             # Config détection secrets
+├── .pre-commit-config.yaml    # Hooks Git
+├── docker-compose.infra.yml   # Stack infra dev local
+└── README.md
 
 ---
 
 ## 🛠️ Stack technique
 
+### Backend
 | Domaine | Technologie | Version |
 |---------|-------------|---------|
 | Langage backend | Java | 21 (LTS) |
-| Langage OCR | Python | 3.11+ |
-| Framework Java | Spring Boot | 3.3.x |
+| Langage OCR | Python | 3.12 |
+| Framework Java | Spring Boot | 3.5.14 |
 | Framework Python | FastAPI | 0.115+ |
-| Build Java | Maven | 3.9+ |
-| Stockage objet | MinIO | latest |
-| Base de données | MySQL | 8.x |
+| Build Java | Maven (wrapper) | 3.9+ |
+
+### Persistance & Messaging
+| Domaine | Technologie | Version |
+|---------|-------------|---------|
+| Base de données | MySQL | 8.4 |
+| Stockage objet | MinIO | latest (S3-compatible) |
 | Recherche | Elasticsearch | 8.x |
-| Messaging | Apache Kafka | 3.7+ |
+| Messaging | Apache Kafka (KRaft) | 3.8 |
 | Cache | Redis | 7.x |
-| Auth / SSO | Keycloak | 24.x |
-| Service Discovery | Netflix Eureka | - |
-| Monitoring | Prometheus + Grafana | - |
-| Containerisation | Docker + Compose | - |
+
+### Sécurité & Observabilité
+| Domaine | Technologie |
+|---------|-------------|
+| Auth / SSO | Keycloak 26 (OIDC + JWT) |
+| Métriques | Micrometer + Prometheus |
+| Logs corrélés | Logback + MDC (correlationId) |
+| Dashboards | Grafana |
+
+### Qualité & DevSecOps
+| Outil | Rôle |
+|-------|------|
+| **JaCoCo** | Couverture de tests |
+| **SpotBugs** | Détection de bugs Java |
+| **Checkstyle** | Style de code (Google Java Style) |
+| **OWASP Dependency-Check** | Scan CVE des dépendances |
+| **CodeQL** | SAST (Static Application Security Testing) |
+| **Trivy** | Scan filesystem + futur scan Docker images |
+| **Gitleaks** | Détection de secrets dans le code |
+| **Dependabot** | Updates auto des dépendances |
+| **Pre-commit hooks** | Vérifications avant commit en local |
 
 ---
 
@@ -104,21 +151,197 @@ ocr-platform/
 
 ### Prérequis
 
-- Java 21+
-- Maven 3.9+
-- Python 3.11+
+- Java 21+ (Temurin recommandé)
 - Docker Desktop 24+
 - Git
+- Python 3.12+ (pour ocr-service, à venir)
+- `uv` (pour pre-commit hooks)
 
-### Lancer l'infrastructure
+### 1. Cloner le repo
+
+```bash
+git clone https://github.com/seckkane/ocr-platform.git
+cd ocr-platform
+```
+
+### 2. Démarrer l'infrastructure (MySQL, MinIO, Kafka, Keycloak)
 
 ```bash
 docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.infra.yml ps
 ```
 
-### Lancer un service
+### 3. Démarrer document-service
 
-Voir le README spécifique de chaque service dans `services/<nom-du-service>/`.
+```bash
+cd services/document-service
+./mvnw spring-boot:run
+```
+
+L'API est disponible sur http://localhost:8081 :
+- **Swagger UI** : http://localhost:8081/swagger-ui.html
+- **Health** : http://localhost:8081/actuator/health
+- **Métriques Prometheus** : http://localhost:8081/actuator/prometheus
+
+### 4. Setup pre-commit hooks (pour contribuer)
+
+```bash
+uv tool install pre-commit
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
+
+---
+## 🌍 Stratégie multi-environnement
+
+Le projet utilise **3 environnements** + un profil de test, alignés sur le Git Flow.
+
+### Profils Spring Boot
+
+| Profile | Quand activé | Usage |
+|---------|--------------|-------|
+| `dev` | Défaut local (aucune env var) | Dev quotidien sur ta machine, infra Docker locale |
+| `test` | Auto via `@ActiveProfiles("test")` | Tests d'intégration Testcontainers |
+| `staging` | `SPRING_PROFILES_ACTIVE=staging` | Pré-production sur VPS (UAT, démos, validation) |
+| `prod` | `SPRING_PROFILES_ACTIVE=prod` | Production réelle |
+
+Les fichiers de config sont dans `services/document-service/src/main/resources/` :
+
+application.yml           # Commun (port, JPA, actuator, springdoc)
+application-dev.yml       # Credentials Docker locaux hardcodés (OK car local)
+application-test.yml      # URLs injectées par Testcontainers
+application-staging.yml   # 100% env-vars (fail-fast si variable manquante)
+application-prod.yml      # 100% env-vars + hardening maximal
+
+### Niveaux de durcissement
+
+| Aspect | dev | staging | prod |
+|--------|-----|---------|------|
+| Secrets | Hardcodés (Docker local) | Env vars obligatoires | Env vars obligatoires |
+| Logs | DEBUG/INFO verbeux | INFO | WARN + INFO app uniquement |
+| `format_sql` | true (lisible) | false | false |
+| Actuator endpoints | health, info, metrics, prometheus | idem (auth requise) | health, info, prometheus |
+| `health.show-details` | always | when-authorized | never |
+| Flyway `baseline-on-migrate` | true | false | false |
+| Stacktraces HTTP | défaut Spring | masquées | masquées + whitelabel off |
+
+### Mapping Git Flow → Environnement
+
+| Branche | Environnement cible | Trigger deploy |
+|---------|---------------------|----------------|
+| `feat/*` | dev local + CI tests | Pre-commit hooks + GitHub Actions |
+| `develop` | staging (futur) | Sera : push merge → deploy staging auto |
+| `main` | prod (futur) | Sera : tag `v*.*.*` → deploy prod manuel |
+
+### Lancer document-service en local (profile dev)
+
+```bash
+# Aucune variable d'env requise, dev est le défaut
+cd services/document-service
+./mvnw spring-boot:run
+```
+
+### Lancer en staging ou prod (futur, sur VPS)
+
+```bash
+# 1. Copier le template approprié
+cp .env.staging.example .env.staging
+
+# 2. Remplir avec les VRAIES valeurs
+nano .env.staging
+
+# 3. Lancer via docker-compose en chargeant le fichier
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d
+```
+
+> ⚠️ **Les fichiers `.env.staging` et `.env.prod` ne sont JAMAIS commités** (ils sont dans `.gitignore`).
+> Seuls les templates `.env.staging.example` et `.env.prod.example` sont versionnés.
+
+---
+
+
+
+
+
+
+## 🧪 Tests & Qualité
+
+document-service utilise des **profils Maven** pour adapter la rigueur au contexte :
+
+### Run rapide (quotidien)
+```bash
+cd services/document-service
+./mvnw verify
+```
+→ Tests unitaires + intégration Testcontainers + JaCoCo (~3 min)
+
+### Run qualité (avant push)
+```bash
+./mvnw verify -P quality
+```
+→ + SpotBugs + Checkstyle (~5 min)
+
+### Run sécurité (nightly)
+```bash
+./mvnw verify -P security
+```
+→ + OWASP Dependency-Check (~10 min, cache NVD 24h)
+
+### Run complet
+```bash
+./mvnw verify -P all
+```
+
+### Rapports générés
+
+| Rapport | Chemin |
+|---------|--------|
+| Couverture JaCoCo | `target/site/jacoco/index.html` |
+| OWASP CVE | `target/dependency-check-report.html` |
+| SpotBugs | `target/spotbugsXml.xml` |
+| Checkstyle | `target/checkstyle-result.xml` |
+
+---
+
+## 📊 Pipeline CI/CD
+
+| Job | Trigger | Durée |
+|-----|---------|-------|
+| `secrets-scan` (gitleaks) | push/PR | ~1 min |
+| `test` (Maven verify) | push/PR | ~5 min |
+| `quality` (SpotBugs + Checkstyle) | PR uniquement | ~5 min |
+| `security` (OWASP) | cron nightly + manual | ~10 min |
+| `trivy-scan` (filesystem CVE) | push/PR | ~2 min |
+| `CodeQL` (SAST) | push/PR + cron weekly | ~10 min |
+
+Caches optimisés : Maven repository, NVD database (~300 MB).
+
+---
+
+## 🔄 Workflow Git
+
+On suit un **Git Flow simplifié** :
+
+- **`main`** : production (protégée, merge via PR uniquement)
+- **`develop`** : intégration (protégée, merge via PR uniquement)
+- **`feat/<nom>`** : feature branches → mergent dans `develop`
+- **`hotfix/<nom>`** : bug critique en prod → mergent dans `main` + `develop`
+
+### Conventions de commit
+
+[Conventional Commits](https://conventionalcommits.org) **obligatoire** (validé par hook `commit-msg`) :
+
+| Préfixe | Usage |
+|---------|-------|
+| `feat:` | Nouvelle fonctionnalité |
+| `fix:` | Correction de bug |
+| `chore:` | Maintenance (deps, config) |
+| `docs:` | Documentation |
+| `refactor:` | Refactoring sans changement fonctionnel |
+| `test:` | Tests |
+| `ci:` | CI/CD |
+| `style:` | Formatage |
+| `perf:` | Optimisation perf |
 
 ---
 
@@ -130,31 +353,17 @@ Voir le README spécifique de chaque service dans `services/<nom-du-service>/`.
 
 ---
 
-## 🔄 Conventions
+## 👤 Auteur
 
-### Commits
+**Issa Seck Kane**
+- 📧 issaseckkane@gmail.com
+- 💼 [LinkedIn](https://www.linkedin.com/in/issaseckkane)
+- 🐙 [GitHub](https://github.com/seckkane)
 
-Format **Conventional Commits** :
-- `feat: ajout de l'upload multipart`
-- `fix: correction du timeout MinIO`
-- `docs: mise à jour du README`
-- `refactor: extraction du service de stockage`
-- `test: ajout des tests d'intégration upload`
-- `chore: bump version Spring Boot`
-
-### Branches
-
-- `main` : branche stable (production-ready)
-- `develop` : branche d'intégration
-- `feat/<nom>` : nouvelle fonctionnalité
-- `fix/<nom>` : correction de bug
+Projet réalisé dans le cadre d'une montée en compétence sur les architectures microservices, event-driven et la culture DevSecOps.
 
 ---
 
-## 📖 Auteur
-
-Projet réalisé dans le cadre d'une montée en compétence sur les architectures microservices.
-
 ## 📄 Licence
 
-À définir.
+Projet portfolio en cours de développement. Internal use.

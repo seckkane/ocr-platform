@@ -1,0 +1,134 @@
+# ============================================================================
+# document-service — Profile STAGING (pre-production VPS)
+# ----------------------------------------------------------------------------
+# Configuration pour l'environnement de pre-production sur VPS Contabo.
+# Sert aux tests UAT, demos client, validation avant prod.
+#
+# REGLE D'OR : aucun secret hardcode. Tout vient des variables d'environnement
+# definies dans docker-compose.staging.yml (lui-meme alimente par .env non commite).
+#
+# Pattern : ${VAR_NAME:default}
+#   - Si default present : valeur de fallback (utile pour URLs publiques)
+#   - Si default absent : Spring fail-fast au demarrage si variable manquante
+# ============================================================================
+
+spring:
+  # --------------------------------------------------------------------------
+  # DataSource — MySQL staging
+  # --------------------------------------------------------------------------
+  datasource:
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: DocumentServiceHikariPool
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      # Verifie les connexions periodiquement (utile si VPS coupe les sockets idle)
+      keepalive-time: 60000
+
+  # --------------------------------------------------------------------------
+  # JPA — minimal logging
+  # --------------------------------------------------------------------------
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        # Pas de format_sql en staging (perfs + secu)
+        format_sql: false
+
+  # --------------------------------------------------------------------------
+  # Flyway — strict en staging
+  # --------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # FAUX en staging/prod : Flyway doit refuser de "sauter" des migrations
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  # --------------------------------------------------------------------------
+  # Security — Keycloak staging
+  # --------------------------------------------------------------------------
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
+
+  # --------------------------------------------------------------------------
+  # Kafka — broker staging
+  # --------------------------------------------------------------------------
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: document-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.ocrplatform.*"
+
+# ============================================================================
+# Logs (INFO uniquement en staging)
+# ============================================================================
+logging:
+  level:
+    root: INFO
+    com.ocrplatform: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN
+    org.springframework.kafka: WARN
+
+# ============================================================================
+# Server — durcissement HTTP
+# ============================================================================
+server:
+  error:
+    # Pas de leak d'info en cas d'erreur
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+# ============================================================================
+# Actuator — endpoints exposes en staging
+# ----------------------------------------------------------------------------
+# show-details: when-authorized = les details health ne sont visibles que si
+# l'appelant est authentifie avec le bon role (a configurer plus tard).
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      show-components: when-authorized
+
+# ============================================================================
+# Stockage objet (MinIO staging)
+# ============================================================================
+storage:
+  endpoint: ${MINIO_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:documents}
+
+# ============================================================================
+# Topics Kafka
+# ============================================================================
+ocr:
+  kafka:
+    topics:
+      document-uploaded: ${KAFKA_TOPIC_DOC_UPLOADED:documents.uploaded}

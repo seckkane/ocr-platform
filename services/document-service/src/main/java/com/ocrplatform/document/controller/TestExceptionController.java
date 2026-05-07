@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * À SUPPRIMER après validation de la Phase 2.
  */
 
-@Profile("!prod")
+@Profile("dev")
 @RestController
 @RequestMapping("/api/test/errors")
 public class TestExceptionController {

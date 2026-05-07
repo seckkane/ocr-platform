@@ -1,68 +1,77 @@
 # ============================================================================
 # document-service — Configuration commune (tous profiles)
 # ----------------------------------------------------------------------------
-# Ce fichier contient les paramètres communs à tous les environnements.
-# Les paramètres spécifiques (BDD, Kafka, etc.) sont dans application-{profile}.yml
-# Profile par défaut : "dev" (voir spring.profiles.active ci-dessous)
+# Ce fichier ne contient QUE les paramètres strictement identiques sur
+# tous les environnements (dev, test, staging, prod).
+# Les paramètres specifiques sont dans application-{profile}.yml :
+#   - application-dev.yml      -> developpement local (Docker compose)
+#   - application-test.yml     -> tests d'integration (Testcontainers)
+#   - application-staging.yml  -> environnement de pre-production (VPS)
+#   - application-prod.yml     -> production (VPS)
+#
+# Profile actif : determine par la variable d'env SPRING_PROFILES_ACTIVE.
+# Fallback : "dev" pour le confort en local. En prod, OBLIGATOIRE de definir
+# explicitement SPRING_PROFILES_ACTIVE=prod (sinon fail-fast au demarrage).
 # ============================================================================
 
 spring:
   # --------------------------------------------------------------------------
-  # Identité de l'application
+  # Identite de l'application
   # --------------------------------------------------------------------------
   application:
     name: document-service
 
   # --------------------------------------------------------------------------
-  # Profile actif par défaut
+  # Profile actif
   # --------------------------------------------------------------------------
-  # Si aucun profile n'est explicitement activé (via env var ou CLI),
-  # Spring active "dev" automatiquement.
-  # En prod, on override avec SPRING_PROFILES_ACTIVE=prod
+  # Pattern senior : variable d'env override le defaut.
+  # En dev local : aucune variable -> "dev" est utilise.
+  # En staging/prod : SPRING_PROFILES_ACTIVE=staging (ou prod) defini par Docker.
   # --------------------------------------------------------------------------
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   # --------------------------------------------------------------------------
-  # JPA / Hibernate (configuration commune)
+  # JPA / Hibernate (configuration commune a tous les environnements)
   # --------------------------------------------------------------------------
   jpa:
-    # Hibernate ne génère JAMAIS le schéma BDD : c'est Flyway qui s'en occupe.
-    # 'validate' = Hibernate vérifie juste que le schéma BDD correspond aux entités.
+    # Hibernate ne genere JAMAIS le schema BDD : c'est Flyway qui s'en occupe.
+    # 'validate' = Hibernate verifie juste que le schema BDD correspond aux entites.
     hibernate:
       ddl-auto: validate
-    # Désactive la "open session in view" (anti-pattern lent)
+    # Desactive la "open session in view" (anti-pattern lent)
     open-in-view: false
     properties:
       hibernate:
-        # Format SQL lisible dans les logs (uniquement utile en dev)
-        format_sql: true
-        # Évite les warnings inutiles
+        # Timezone explicite pour eviter les soucis de TZ entre app et BDD
         jdbc:
           time_zone: UTC
 
   # --------------------------------------------------------------------------
-  # Upload de fichiers (limites)
+  # Upload de fichiers (limites communes)
   # --------------------------------------------------------------------------
   servlet:
     multipart:
-      max-file-size: 50MB        # Taille max d'un fichier uploadé
-      max-request-size: 50MB     # Taille max d'une requête multipart
+      max-file-size: 50MB
+      max-request-size: 50MB
       enabled: true
 
 # ============================================================================
-# Server (Tomcat embarqué)
+# Server (Tomcat embarque)
 # ============================================================================
 server:
-  port: 8081  # Port dédié à document-service (évite le conflit avec d'autres services)
+  port: 8081
 
 # ============================================================================
-# Actuator — Endpoints de monitoring
-# ============================================================================
-# /actuator/health    → status de l'app
-# /actuator/info      → infos de build
-# /actuator/metrics   → métriques (micrometer)
-# /actuator/prometheus → format Prometheus (Phase 4)
+# Actuator — Endpoints de monitoring (configuration de base)
+# ----------------------------------------------------------------------------
+# /actuator/health     -> status de l'app (liveness + readiness)
+# /actuator/info       -> infos de build
+# /actuator/metrics    -> metriques (micrometer)
+# /actuator/prometheus -> format Prometheus
+#
+# NOTE : la liste des endpoints exposes peut etre restreinte par profil
+# (ex: en prod, on cache /metrics derriere un port management separe).
 # ============================================================================
 management:
   endpoints:
@@ -79,9 +88,6 @@ management:
 # ============================================================================
 # OpenAPI / Swagger UI
 # ============================================================================
-# /v3/api-docs       → spec OpenAPI JSON
-# /swagger-ui.html   → UI interactive
-# ============================================================================
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -89,4 +95,3 @@ springdoc:
     path: /swagger-ui.html
     tags-sorter: alpha
     operations-sorter: alpha
-

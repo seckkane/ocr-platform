@@ -1,23 +1,26 @@
 # ============================================================================
 # document-service — Profile DEV
 # ----------------------------------------------------------------------------
-# Configuration spécifique au développement local.
+# Configuration specifique au developpement local.
 # Cible l'infrastructure Docker locale (docker-compose.infra.yml) :
-#   - MySQL  : localhost:3306
-#   - Kafka  : localhost:29092 (listener externe)
-#   - MinIO  : localhost:9000 (sera utilisé plus tard)
+#   - MySQL    : localhost:3306
+#   - Kafka    : localhost:29092 (listener externe)
+#   - MinIO    : localhost:9000
+#   - Keycloak : localhost:8180
+#
+# IMPORTANT : les credentials hardcodes ici sont OK car ils correspondent
+# aux defauts Docker de l'infra locale uniquement. Jamais utilises en prod.
 # ============================================================================
 
 spring:
   # --------------------------------------------------------------------------
-  # DataSource — Connexion MySQL local (Docker)
+  # DataSource — MySQL local (Docker)
   # --------------------------------------------------------------------------
   datasource:
     url: jdbc:mysql://localhost:3306/documents_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ocr_user
     password: ocr_password
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # Hikari = pool de connexions par défaut Spring Boot
     hikari:
       pool-name: DocumentServiceHikariPool
       maximum-pool-size: 10
@@ -25,14 +28,14 @@ spring:
       connection-timeout: 30000
 
   # --------------------------------------------------------------------------
-  # JPA — paramètres dev (verbeux)
+  # JPA — verbose en dev pour debug
   # --------------------------------------------------------------------------
   jpa:
-    show-sql: false              # Affiche les requêtes SQL dans la console
+    show-sql: false
     properties:
       hibernate:
-        # Dialect MySQL 8 (auto-détecté en général, mais on est explicite)
-        dialect: org.hibernate.dialect.MySQLDialect
+        # SQL formate (lisible) — uniquement en dev
+        format_sql: true
 
   # --------------------------------------------------------------------------
   # Flyway — migrations BDD
@@ -40,15 +43,14 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    # Baseline = considère que la BDD existante est à la version 1
-    # (utile si on ajoute Flyway sur une BDD déjà créée)
+    # baseline-on-migrate=true : utile en dev si on ajoute Flyway sur une BDD existante
+    # En staging/prod : false (on ne veut pas Flyway qui "saute" des migrations)
     baseline-on-migrate: true
     baseline-version: 0
-    # Vérifie que les migrations déjà appliquées n'ont pas changé
     validate-on-migrate: true
 
   # --------------------------------------------------------------------------
-  # Security — OAuth2 Resource Server (Keycloak)
+  # Security — OAuth2 Resource Server (Keycloak local)
   # --------------------------------------------------------------------------
   security:
     oauth2:
@@ -58,20 +60,16 @@ spring:
           jwk-set-uri: http://localhost:8180/realms/ocr-platform/protocol/openid-connect/certs
 
   # --------------------------------------------------------------------------
-  # Kafka — bootstrap servers (listener externe = depuis ta machine)
+  # Kafka — listener externe (depuis machine hote)
   # --------------------------------------------------------------------------
   kafka:
     bootstrap-servers: localhost:29092
-    # Producer (publication d'events)
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      # Garantit que tous les replicas confirment avant que le producer continue
       acks: all
-      # Évite les doublons en cas de retry (idempotence du producer)
       properties:
         enable.idempotence: true
-    # Consumer (sera utilisé plus tard, on le pré-configure)
     consumer:
       group-id: document-service
       auto-offset-reset: earliest
@@ -81,7 +79,7 @@ spring:
         spring.json.trusted.packages: "com.ocrplatform.*"
 
 # ============================================================================
-# Logs (verbose en dev)
+# Logs (verbeux en dev)
 # ============================================================================
 logging:
   level:
@@ -92,14 +90,18 @@ logging:
     org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
     org.springframework.web.servlet.DispatcherServlet: WARN
 
-# ===== Stockage objet (MinIO local via docker-compose.infra.yml) =====
+# ============================================================================
+# Stockage objet (MinIO local via docker-compose.infra.yml)
+# ============================================================================
 storage:
   endpoint: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin123
   bucket: documents
 
-# ===== Topics Kafka (noms centralises) =====
+# ============================================================================
+# Topics Kafka (noms centralises)
+# ============================================================================
 ocr:
   kafka:
     topics:

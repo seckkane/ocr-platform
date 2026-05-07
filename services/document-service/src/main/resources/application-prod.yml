@@ -1,0 +1,138 @@
+# ============================================================================
+# document-service — Profile PROD (production)
+# ----------------------------------------------------------------------------
+# Configuration pour l'environnement de PRODUCTION reel.
+# Hardening maximal : logs minimaux, endpoints minimaux, pas de leak d'info.
+#
+# REGLE ABSOLUE : aucun secret. TOUT vient de variables d'environnement.
+# Tous les ${VAR} sans default forcent un fail-fast si non definis.
+# ============================================================================
+
+spring:
+  # --------------------------------------------------------------------------
+  # DataSource — MySQL production
+  # --------------------------------------------------------------------------
+  datasource:
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: DocumentServiceHikariPool
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 30000
+      keepalive-time: 60000
+      # Detection des connexions coupees
+      validation-timeout: 5000
+
+  # --------------------------------------------------------------------------
+  # JPA — minimal
+  # --------------------------------------------------------------------------
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        # Cache de second niveau (a activer plus tard avec Caffeine/Redis)
+        # cache.use_second_level_cache: true
+
+  # --------------------------------------------------------------------------
+  # Flyway — strict en prod
+  # --------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    # Verrou exclusif pour eviter les races en cas de scaling horizontal
+    # (plusieurs instances qui demarrent en meme temps)
+
+  # --------------------------------------------------------------------------
+  # Security — Keycloak production
+  # --------------------------------------------------------------------------
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
+
+  # --------------------------------------------------------------------------
+  # Kafka — production
+  # --------------------------------------------------------------------------
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: document-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.ocrplatform.*"
+
+# ============================================================================
+# Logs — minimal (WARN par defaut)
+# ============================================================================
+logging:
+  level:
+    root: WARN
+    com.ocrplatform: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    org.springframework.kafka: WARN
+
+# ============================================================================
+# Server — hardening maximal
+# ============================================================================
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+
+# ============================================================================
+# Actuator — endpoints minimaux en prod
+# ----------------------------------------------------------------------------
+# /metrics retire de l'expose public (info trop sensible).
+# /prometheus reste disponible mais devra etre filtre par le reverse proxy
+# (uniquement accessible depuis IP Prometheus).
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+  info:
+    env:
+      enabled: false
+
+# ============================================================================
+# Stockage objet (MinIO prod)
+# ============================================================================
+storage:
+  endpoint: ${MINIO_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:documents}
+
+# ============================================================================
+# Topics Kafka
+# ============================================================================
+ocr:
+  kafka:
+    topics:
+      document-uploaded: ${KAFKA_TOPIC_DOC_UPLOADED:documents.uploaded}

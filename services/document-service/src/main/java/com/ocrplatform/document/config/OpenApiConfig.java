@@ -30,7 +30,7 @@ public class OpenApiConfig {
                         .version("1.0.0")
                         .description("""
                                 Service de gestion des documents pour la plateforme OCR.
-                                
+
                                 Gere l'upload, le stockage (MinIO), les metadonnees (MySQL),
                                 l'audit et la publication d'events Kafka pour le traitement OCR.
                                 """)

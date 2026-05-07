@@ -1,0 +1,75 @@
+# ============================================================================
+# CodeQL — SAST (Static Application Security Testing)
+# ----------------------------------------------------------------------------
+# Analyse statique du code source pour detecter les vulnerabilites de
+# securite (injection SQL, XSS, hardcoded credentials, etc.)
+#
+# Outil officiel GitHub. Gratuit pour repos publics.
+# Resultats visibles dans : Settings > Security > Code scanning
+#
+# Frequence :
+#   - Sur push develop/main
+#   - Sur PR vers develop/main
+#   - Cron hebdomadaire (lundi 8h UTC) pour rescanner avec nouvelles regles
+# ============================================================================
+
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 8 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['java-kotlin']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Build with Maven (Java)
+        if: matrix.language == 'java-kotlin'
+        working-directory: services/document-service
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean compile -DskipTests
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
