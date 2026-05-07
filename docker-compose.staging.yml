@@ -1,0 +1,220 @@
+# ============================================================================
+# OCR Platform — STAGING Stack
+# ----------------------------------------------------------------------------
+# Stack complete pour environnement de pre-production sur VPS Contabo.
+# Lance l'infra (MySQL, MinIO, Kafka, Keycloak) ET document-service.
+#
+# Differences avec docker-compose.infra.yml :
+#   - infra.yml      : juste l'infra, pour DEV local (app via mvnw a cote)
+#   - staging.yml    : infra + applicatif, pour deploy VPS (tout dockerise)
+#
+# Usage :
+#   1. Copier .env.staging.example en .env.staging et remplir les vraies valeurs
+#   2. docker compose -f docker-compose.staging.yml --env-file .env.staging up -d
+#   3. docker compose -f docker-compose.staging.yml --env-file .env.staging logs -f document-service
+#   4. docker compose -f docker-compose.staging.yml down  (stop tout)
+#   5. docker compose -f docker-compose.staging.yml down -v  (stop + delete volumes)
+#
+# Pre-requis : avoir build l'image document-service:staging
+#   docker build -t document-service:staging services/document-service
+# ============================================================================
+
+# Reseau prive partage par tous les services
+networks:
+  ocr-staging-network:
+    driver: bridge
+    name: ocr-staging-network
+
+# Volumes persistants (les donnees survivent aux restart de containers)
+volumes:
+  mysql-staging-data:
+    name: ocr-mysql-staging-data
+  minio-staging-data:
+    name: ocr-minio-staging-data
+  kafka-staging-data:
+    name: ocr-kafka-staging-data
+  keycloak-staging-data:
+    name: ocr-keycloak-staging-data
+
+services:
+
+  # ==========================================================================
+  # MySQL 8.4 — Base de donnees de document-service
+  # ==========================================================================
+  mysql:
+    image: mysql:8.4
+    container_name: ocr-staging-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-staging-data:/var/lib/mysql
+    networks:
+      - ocr-staging-network
+    # Pas de port expose : MySQL n'est accessible qu'aux services du reseau Docker.
+    # Pour debug : docker exec -it ocr-staging-mysql mysql -u root -p
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ==========================================================================
+  # MinIO — Stockage objet S3-compatible
+  # ==========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: ocr-staging-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio-staging-data:/data
+    networks:
+      - ocr-staging-network
+    # Console MinIO uniquement (port API 9000 reste interne au reseau Docker)
+    # Pour acceder a la console depuis Internet, on passera par un reverse proxy plus tard.
+    ports:
+      - "127.0.0.1:9001:9001"   # Bind sur localhost VPS uniquement (pas accessible publiquement)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==========================================================================
+  # MinIO Init — Creation automatique du bucket au demarrage
+  # ==========================================================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: ocr-staging-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - ocr-staging-network
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+      mc mb --ignore-existing local/${MINIO_BUCKET};
+      echo '[OK] MinIO bucket ${MINIO_BUCKET} ready';
+      exit 0;
+      "
+
+  # ==========================================================================
+  # Apache Kafka 3.8 (mode KRaft, sans Zookeeper)
+  # ==========================================================================
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: ocr-staging-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Auto-creation des topics : DESACTIVEE en staging (creation explicite seulement)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-staging-data:/var/lib/kafka/data
+    networks:
+      - ocr-staging-network
+    # Pas de port expose : Kafka n'est accessible qu'aux services du reseau Docker
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  # ==========================================================================
+  # Keycloak 26 — Identity & Access Management
+  # ==========================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: ocr-staging-keycloak
+    restart: unless-stopped
+    # En staging on garde start-dev (BDD H2 fichier).
+    # En PROD, on basculera sur start (mode production) avec une vraie BDD PostgreSQL externe.
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_PROXY_HEADERS: "xforwarded"
+      KC_HOSTNAME_STRICT: "false"
+    volumes:
+      - keycloak-staging-data:/opt/keycloak/data
+    networks:
+      - ocr-staging-network
+    # Console admin Keycloak (sera derriere reverse proxy en prod)
+    ports:
+      - "127.0.0.1:8180:8080"
+
+  # ==========================================================================
+  # Document-service — Application Spring Boot
+  # ==========================================================================
+  document-service:
+    # Tag de l'image construite via : docker build -t document-service:staging services/document-service
+    image: document-service:staging
+    container_name: ocr-staging-document-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      # ===== Profile Spring =====
+      SPRING_PROFILES_ACTIVE: staging
+
+      # ===== MySQL =====
+      # IMPORTANT : 'mysql' ici est le NOM DU SERVICE Docker, pas localhost.
+      # Docker resout 'mysql' vers l'IP du container mysql via DNS interne.
+      MYSQL_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+      # ===== Kafka =====
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_DOC_UPLOADED: ${KAFKA_TOPIC_DOC_UPLOADED:-documents.uploaded}
+
+      # ===== MinIO =====
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+
+      # ===== Keycloak =====
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+
+      # ===== JVM tuning (optionnel) =====
+      # Override la valeur du Dockerfile si besoin de plus/moins de RAM
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
+    networks:
+      - ocr-staging-network
+    # API document-service exposee (sera derriere reverse proxy Traefik en prod)
+    ports:
+      - "127.0.0.1:8081:8081"
