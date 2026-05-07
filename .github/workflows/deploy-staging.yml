@@ -108,7 +108,7 @@ jobs:
       # (sans cache, chaque build re-telecharge toutes les deps Maven = lent)
       # ----------------------------------------------------------------------
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./services/document-service
           file: ./services/document-service/Dockerfile
