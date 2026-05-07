@@ -27,8 +27,8 @@ L'architecture suit les principes **microservices** et **event-driven**, avec un
 
 | Service | Stack | Statut |
 |---------|-------|--------|
-| `document-service` | Java 21 / Spring Boot 3.5 | ✅ **Production-ready** |
-| `ocr-service` | Python 3.12 / FastAPI / Tesseract | 🚧 En cours |
+| `document-service` | Java 21 / Spring Boot 3.5 | ✅ **Production-ready + Staging-ready** |
+| `ocr-service` | Python 3.12 / FastAPI / Tesseract | 🚧 À démarrer (Phase 8) |
 | `search-service` | Java 21 / Spring Boot / Elasticsearch | 📋 Planifié |
 | `gateway` | Spring Cloud Gateway | 📋 Planifié |
 
@@ -36,77 +36,89 @@ L'architecture suit les principes **microservices** et **event-driven**, avec un
 
 ## 🏗️ Architecture
 
-## 🏗️ Architecture
+### Vue d'ensemble
 
-```text
-                    ┌─────────────┐
-                    |   CLIENT         |
-                    └──────┬──────┘
-                            HTTPS
-                    ┌──────▼──────┐
-                    |   GATEWAY        │
-                    | Spring Boot      │
-                    | Auth · Routing · Rate Limit
-                    └──┬────┬────┬──┘
-        ┌───────────┘            └──────────────┐
-        │                      |                         |
-┌───────▼────────┐ ┌────────▼────────┐ ┌────────▼────────┐
-│ document-svc         | │  ocr-service          | │  search-svc           │
-│ Spring Boot          | │   FastAPI             | │ Spring Boot           │
-│ Upload + MinIO       | │ PaddleOCR/Tess        | │ Elasticsearch         │
-└───────┬────────┘ └────────┬────────┘ └────────▲────────┘
-           │                         │                         │
-           └───────────► Kafka  ◄───────────────────┘
+```
+                              +-------------+
+                              |   CLIENT    |
+                              +------+------+
+                                     | HTTPS + JWT
+                                     v
+                              +-------------+
+                              |   GATEWAY   |  Spring Cloud Gateway
+                              | Auth/Routing|  Rate-limit . Routing
+                              +------+------+
+                  +------------------+------------------+
+                  v                  v                  v
+          +---------------+  +---------------+  +---------------+
+          | document-svc  |  |  ocr-service  |  | search-service|
+          |  Spring Boot  |  |    FastAPI    |  |  Spring Boot  |
+          | Upload+MinIO  |  | Tesseract OCR |  | Elasticsearch |
+          +-------+-------+  +-------+-------+  +-------^-------+
+                  |                  |                  |
+                  +------------------v------------------+
+                                  Kafka
+                            (event broker)
 
-┌────────────────────────────────────────────────────────────┐
-│                    INFRASTRUCTURE                                              │
-│ MinIO · Kafka · Elasticsearch · MySQL · Redis                                  │
-│ Keycloak · Prometheus · Grafana                                                │
-└────────────────────────────────────────────────────────────┘
-
+  +----------------------------------------------------------------+
+  |                       INFRASTRUCTURE                           |
+  |   MinIO  .  MySQL  .  PostgreSQL  .  Elasticsearch  .  Redis   |
+  |              Keycloak  .  Prometheus  .  Grafana               |
+  +----------------------------------------------------------------+
+```
 
 ### Flow de traitement d'un document
 
 1. Le client uploade un PDF via la **Gateway** (authentifié par JWT Keycloak).
-2. Le **document-service** stocke le fichier dans **MinIO**, les métadonnées dans **MySQL**, et publie un event `documents.uploaded` dans **Kafka**.
+2. Le **document-service** stocke le fichier dans **MinIO**, les métadonnées dans **MySQL**, puis publie un event `documents.uploaded` dans **Kafka**.
 3. L'**ocr-service** consomme l'event, télécharge le fichier, extrait le texte (OCR si nécessaire) et publie `documents.ocr.completed`.
 4. Le **search-service** consomme cet event et indexe le contenu dans **Elasticsearch**.
 5. Le client peut alors rechercher dans le contenu via la **Gateway** → **search-service**.
+
+### Communication inter-services
+
+| Communication | Type | Protocole |
+|---|---|---|
+| Client → Gateway → Services | Synchrone | HTTP/REST + JWT |
+| Service → Service | **Asynchrone** | **Apache Kafka** (events) |
+| Service → BDD | Synchrone | JDBC (Java) / asyncpg (Python) |
+| Service → Storage | Synchrone | MinIO S3-compatible API |
+
+> 💡 Le pattern **event-driven via Kafka** garantit le découplage : un service peut tomber en panne sans bloquer les autres. Les events sont rejouables (replay) en cas de besoin.
 
 ---
 
 ## 📁 Structure du monorepo
 
+```
 ocr-platform/
 ├── .github/
-│   ├── workflows/             # GitHub Actions (CI, CodeQL)
-│   └── dependabot.yml         # Updates auto des dépendances
-├── services/                  # Microservices applicatifs
-│   ├── document-service/      # Spring Boot — Upload & stockage
-│   ├── ocr-service/           # FastAPI — Extraction OCR (à venir)
-│   ├── search-service/        # Spring Boot — Indexation (à venir)
-│   └── gateway/               # Spring Cloud Gateway (à venir)
-├── infrastructure/            # Configurations infra
-│   ├── keycloak/              # Realm exports
-│   ├── kafka/                 # Topics initialization
-│   ├── minio/                 # Buckets initialization
-│   └── monitoring/            # Prometheus + Grafana configs
-├── docs/                      # Documentation projet
-│   ├── architecture/          # Schémas et descriptions
-│   ├── adr/                   # Architecture Decision Records
-│   └── api/                   # Spécifications OpenAPI
-├── scripts/                   # Scripts utilitaires
-├── .editorconfig              # Formatage uniforme inter-IDE
-├── .gitleaks.toml             # Config détection secrets
-├── .pre-commit-config.yaml    # Hooks Git
-├── docker-compose.infra.yml   # Stack infra dev local
+│   ├── workflows/                # GitHub Actions (CI, CodeQL, deploy-staging)
+│   └── dependabot.yml            # Updates auto des dépendances
+├── services/                     # Microservices applicatifs
+│   ├── document-service/         # Spring Boot — Upload & stockage
+│   ├── ocr-service/              # FastAPI — Extraction OCR (à venir)
+│   ├── search-service/           # Spring Boot — Indexation (à venir)
+│   └── gateway/                  # Spring Cloud Gateway (à venir)
+├── infrastructure/               # Configurations infra (à venir)
+├── docs/                         # Documentation projet
+├── scripts/                      # Scripts utilitaires
+├── .env.staging.example          # Template variables staging
+├── .env.prod.example             # Template variables prod
+├── .editorconfig                 # Formatage uniforme inter-IDE
+├── .gitleaks.toml                # Config détection secrets
+├── .pre-commit-config.yaml       # Hooks Git
+├── docker-compose.infra.yml      # Stack infra dev local
+├── docker-compose.staging.yml    # Stack complète VPS staging
 └── README.md
+```
 
 ---
 
 ## 🛠️ Stack technique
 
 ### Backend
+
 | Domaine | Technologie | Version |
 |---------|-------------|---------|
 | Langage backend | Java | 21 (LTS) |
@@ -116,6 +128,7 @@ ocr-platform/
 | Build Java | Maven (wrapper) | 3.9+ |
 
 ### Persistance & Messaging
+
 | Domaine | Technologie | Version |
 |---------|-------------|---------|
 | Base de données | MySQL | 8.4 |
@@ -125,6 +138,7 @@ ocr-platform/
 | Cache | Redis | 7.x |
 
 ### Sécurité & Observabilité
+
 | Domaine | Technologie |
 |---------|-------------|
 | Auth / SSO | Keycloak 26 (OIDC + JWT) |
@@ -133,6 +147,7 @@ ocr-platform/
 | Dashboards | Grafana |
 
 ### Qualité & DevSecOps
+
 | Outil | Rôle |
 |-------|------|
 | **JaCoCo** | Couverture de tests |
@@ -141,6 +156,7 @@ ocr-platform/
 | **OWASP Dependency-Check** | Scan CVE des dépendances |
 | **CodeQL** | SAST (Static Application Security Testing) |
 | **Trivy** | Scan filesystem + futur scan Docker images |
+| **Hadolint** | Linter Dockerfile |
 | **Gitleaks** | Détection de secrets dans le code |
 | **Dependabot** | Updates auto des dépendances |
 | **Pre-commit hooks** | Vérifications avant commit en local |
@@ -183,6 +199,8 @@ L'API est disponible sur http://localhost:8081 :
 - **Health** : http://localhost:8081/actuator/health
 - **Métriques Prometheus** : http://localhost:8081/actuator/prometheus
 
+> 📖 Pour le détail spécifique au service, voir [`services/document-service/README.md`](./services/document-service/README.md).
+
 ### 4. Setup pre-commit hooks (pour contribuer)
 
 ```bash
@@ -192,6 +210,7 @@ pre-commit install --hook-type commit-msg
 ```
 
 ---
+
 ## 🌍 Stratégie multi-environnement
 
 Le projet utilise **3 environnements** + un profil de test, alignés sur le Git Flow.
@@ -207,11 +226,13 @@ Le projet utilise **3 environnements** + un profil de test, alignés sur le Git 
 
 Les fichiers de config sont dans `services/document-service/src/main/resources/` :
 
+```
 application.yml           # Commun (port, JPA, actuator, springdoc)
 application-dev.yml       # Credentials Docker locaux hardcodés (OK car local)
 application-test.yml      # URLs injectées par Testcontainers
 application-staging.yml   # 100% env-vars (fail-fast si variable manquante)
 application-prod.yml      # 100% env-vars + hardening maximal
+```
 
 ### Niveaux de durcissement
 
@@ -259,35 +280,37 @@ docker compose --env-file .env.staging -f docker-compose.staging.yml up -d
 
 ---
 
-
-
-
-
-
 ## 🧪 Tests & Qualité
 
 document-service utilise des **profils Maven** pour adapter la rigueur au contexte :
 
 ### Run rapide (quotidien)
+
 ```bash
 cd services/document-service
 ./mvnw verify
 ```
+
 → Tests unitaires + intégration Testcontainers + JaCoCo (~3 min)
 
 ### Run qualité (avant push)
+
 ```bash
 ./mvnw verify -P quality
 ```
+
 → + SpotBugs + Checkstyle (~5 min)
 
 ### Run sécurité (nightly)
+
 ```bash
 ./mvnw verify -P security
 ```
+
 → + OWASP Dependency-Check (~10 min, cache NVD 24h)
 
 ### Run complet
+
 ```bash
 ./mvnw verify -P all
 ```
@@ -313,8 +336,9 @@ cd services/document-service
 | `security` (OWASP) | cron nightly + manual | ~10 min |
 | `trivy-scan` (filesystem CVE) | push/PR | ~2 min |
 | `CodeQL` (SAST) | push/PR + cron weekly | ~10 min |
+| `deploy-staging` (build + push GHCR) | push develop + manual | ~5 min |
 
-Caches optimisés : Maven repository, NVD database (~300 MB).
+Caches optimisés : Maven repository, NVD database (~300 MB), GHA Docker layer cache.
 
 ---
 
@@ -326,6 +350,7 @@ On suit un **Git Flow simplifié** :
 - **`develop`** : intégration (protégée, merge via PR uniquement)
 - **`feat/<nom>`** : feature branches → mergent dans `develop`
 - **`hotfix/<nom>`** : bug critique en prod → mergent dans `main` + `develop`
+- **`docs/<nom>`** : documentation pure → mergent dans `develop`
 
 ### Conventions de commit
 
@@ -347,6 +372,8 @@ On suit un **Git Flow simplifié** :
 
 ## 📚 Documentation
 
+- **Service document-service** : [`services/document-service/README.md`](./services/document-service/README.md)
+- **Bilan technique exhaustif** : [`DOCUMENT-SERVICE-COMPLETED.md`](./DOCUMENT-SERVICE-COMPLETED.md)
 - **Architecture détaillée** : [`docs/architecture/`](./docs/architecture/)
 - **Décisions d'architecture (ADR)** : [`docs/adr/`](./docs/adr/)
 - **API specs** : [`docs/api/`](./docs/api/)
