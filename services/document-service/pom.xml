@@ -323,7 +323,7 @@
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>4.9.3.0</version>
+                        <version>4.10.2.0</version>
                         <configuration>
                             <effort>Default</effort>
                             <threshold>Medium</threshold>
@@ -438,7 +438,7 @@
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>4.9.3.0</version>
+                        <version>4.10.2.0</version>
                         <configuration>
                             <effort>Default</effort>
                             <threshold>Medium</threshold>
